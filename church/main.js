@@ -14,7 +14,7 @@ function renderScene(settings) {
     0.1,
     1000
   );
-  camera.position.set(0, 1.5, 3);
+  camera.position.set(0, 1.0, 4);
   
   // 3. Renderer instellen met de juiste kleurruimte (sRGB)
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -36,41 +36,80 @@ function renderScene(settings) {
   
   
   // 5. Loader
+  
+  const sunLight = createSunlight();
+
   const loader = new GLTFLoader();
-  var box;
-  var sunLight = null;
+  function loadModels() {
+    settings.models.forEach(modelInfo => loadModel(modelInfo));
+    createLights();
+    animate();
+  }
   
-  // Vervang 'path/to/your/model.gltf' door het daadwerkelijke pad naar jouw bestand
-  loader.load(
-    settings.modelPath,
-    (gltf) => {
-      const model = gltf.scene;
-  
-      // Optioneel: Centreer het model automatisch in de scene
-      box = new THREE.Box3().setFromObject(model);
-      console.log("box", box, box.min.z, box.max.z)
-      const center = box.getCenter(new THREE.Vector3());
-      model.position.sub(center);
-      console.log("center", center)
-  
-      scene.add(model);
-      console.log('Model succesvol geladen!');
-      
-      sunLight = createLights(box);
-      
-      animate();
-    },
-    (xhr) => {
-      // Voortgang in console
-      if (xhr.lengthComputable) {
-        const percentComplete = (xhr.loaded / xhr.total) * 100;
-        console.log(`Laden: ${Math.round(percentComplete)}%`);
+  function loadModel(modelInfo) {
+    loader.load(
+      modelInfo.path,
+      (gltf) => {
+        const model = gltf.scene;
+        model.scale.x = model.scale.x * modelInfo.scale;
+        model.scale.y = model.scale.y * modelInfo.scale;
+        model.scale.z = model.scale.z * modelInfo.scale;
+        
+        let box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        model.position.x += modelInfo.position.x;
+        model.position.y += modelInfo.position.y;
+        model.position.z += modelInfo.position.z;
+    
+        scene.add(model);
+        console.log('Model succesvol geladen!', model);
+        return;
+      },
+      (xhr) => {
+        // Voortgang in console
+        if (xhr.lengthComputable) {
+          const percentComplete = (xhr.loaded / xhr.total) * 100;
+          console.log(`Laden: ${Math.round(percentComplete)}%`);
+        }
+      },
+      (error) => {
+        console.error('Er is een fout opgetreden bij het laden van het model:', error);
       }
-    },
-    (error) => {
-      console.error('Er is een fout opgetreden bij het laden van het model:', error);
-    }
-  );
+    );
+  }
+  
+  loadModels();
+  
+  function createSunlight() {
+    var sunLight = new THREE.DirectionalLight(0xffd0d0, settings.sunStrength);
+    sunLight.position.set(settings.sunDistance / 5, settings.sunDistance, settings.sunDistance);
+    scene.add(sunLight);
+    
+    return sunLight;
+  }
+  
+  function createLights() {
+    // 6. Belichting toevoegen (Essentieel voor GLTF / MeshStandardMaterial)
+    // Omgevingslicht voor algemene helderheid
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+    scene.add(ambientLight);
+    
+    // Hemellicht voor zachte schaduwen/nuance
+    /*const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
+    hemiLight.position.set(0, 60, 0);
+    scene.add(hemiLight);*/
+    
+    // Richtingslicht voor diepte en highlights
+    
+    const dirLightRedBack = new THREE.DirectionalLight(settings.shadowColor, 1.5);
+    dirLightRedBack.position.set(0, 0, -0.2);
+    scene.add(dirLightRedBack);
+    
+    const dirLightRedFront = new THREE.DirectionalLight(settings.shadowColor, 1.5);
+    dirLightRedFront.position.set(0, 0, 0.2);
+    scene.add(dirLightRedFront);
+  }
   
   // 8. Animatieloop
   var lightRad = 0;
@@ -87,39 +126,29 @@ function renderScene(settings) {
     controls.update(); // Noodzakelijk als enableDamping = true
     renderer.render(scene, camera);
   }
-  
-  
-  function createLights(box) {
-    // 6. Belichting toevoegen (Essentieel voor GLTF / MeshStandardMaterial)
-    // Omgevingslicht voor algemene helderheid
-    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-    scene.add(ambientLight);
-    
-    // Hemellicht voor zachte schaduwen/nuance
-    /*const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
-    hemiLight.position.set(0, 60, 0);
-    scene.add(hemiLight);*/
-    
-    // Richtingslicht voor diepte en highlights
-    
-    const dirLightRedBack = new THREE.DirectionalLight(settings.shadowColor, 1.5);
-    dirLightRedBack.position.set(0, 0, box.min.z);
-    scene.add(dirLightRedBack);
-    
-    const dirLightRedFront = new THREE.DirectionalLight(settings.shadowColor, 1.5);
-    dirLightRedFront.position.set(0, 0, box.max.z);
-    scene.add(dirLightRedFront);
-    
-    const sunLight = new THREE.DirectionalLight(0xffd0d0, settings.sunStrength);
-    sunLight.position.set(settings.sunDistance / 5, settings.sunDistance, settings.sunDistance);
-    scene.add(sunLight);
-  
-    return sunLight;
-  }
 }
-
-const settings = {
-  modelPath: 'public/treehouse.glb',
+  
+const sceneSettings = {
+  models: [
+    {
+      path: 'public/treehouse.glb',
+      position: {
+        x: 0,
+        y: 0.09,
+        z: -0.65
+      },
+      scale: 0.5,
+    },
+    {
+      path: 'public/church.glb',
+      position: {
+        x: 0,
+        y: 0,
+        z: 0
+      },
+      scale: 1
+    }
+  ],
   sceneBackground: 0x202020,
   shadowColor: 0xff80f0,
   sunStrength: 55,
@@ -127,4 +156,4 @@ const settings = {
   sunSpeed: 2
 }
 
-renderScene(settings);
+renderScene(sceneSettings);

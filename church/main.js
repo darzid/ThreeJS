@@ -2,9 +2,16 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+const modelPath = 'public/church.glb';
+const sceneBackground = 0x202020;
+const directionalLightColor = 0xff0000;
+const sunStrength = 55;
+const sunDistance = 50;
+const sunSpeed = 2;
+
 // 1. Scene instellen
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x202020); // Donkergrijze achtergrond om het model goed te zien
+scene.background = new THREE.Color(sceneBackground); // Donkergrijze achtergrond om het model goed te zien
 
 // 2. Camera instellen
 const camera = new THREE.PerspectiveCamera(
@@ -26,48 +33,38 @@ document.body.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// 5. Belichting toevoegen (Essentieel voor GLTF / MeshStandardMaterial)
-// Omgevingslicht voor algemene helderheid
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-scene.add(ambientLight);
-
-// Hemellicht voor zachte schaduwen/nuance
-/*const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
-hemiLight.position.set(0, 60, 0);
-scene.add(hemiLight);*/
-
-// Richtingslicht voor diepte en highlights
-
-const dirLightRedBack = new THREE.DirectionalLight(0xff0000, 1.5);
-dirLightRedBack.position.set(0, 0, -0.2);
-scene.add(dirLightRedBack);
-
-const dirLightRedFront = new THREE.DirectionalLight(0xff0000, 1.5);
-dirLightRedFront.position.set(0, 0, 0.2);
-scene.add(dirLightRedFront);
-
-const sunLight = new THREE.DirectionalLight(0xffd0d0, 54.5);
-sunLight.position.set(0, 5, -5);
-scene.add(sunLight);
+// 7. Venster schalen afhandelen
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 
-// 6. GLTF Model Laden
+// 5. Loader
 const loader = new GLTFLoader();
+var box;
+var sunLight = null;
 
 // Vervang 'path/to/your/model.gltf' door het daadwerkelijke pad naar jouw bestand
 loader.load(
-  'public/church.glb',
+  modelPath,
   (gltf) => {
     const model = gltf.scene;
 
     // Optioneel: Centreer het model automatisch in de scene
-    const box = new THREE.Box3().setFromObject(model);
+    box = new THREE.Box3().setFromObject(model);
+    console.log("box", box, box.min.z, box.max.z)
     const center = box.getCenter(new THREE.Vector3());
     model.position.sub(center);
     console.log("center", center)
 
     scene.add(model);
     console.log('Model succesvol geladen!');
+    
+    sunLight = createLights(box);
+    
+    animate();
   },
   (xhr) => {
     // Voortgang in console
@@ -81,28 +78,47 @@ loader.load(
   }
 );
 
-// 7. Venster schalen afhandelen
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
 // 8. Animatieloop
-var positionXStep = 0.05;
 var lightRad = 0;
-var lightRadStep = Math.PI / 720;
-var lightDistance = 50;
+var lightRadStep = Math.PI / (360 * sunSpeed);
 
 function animate() {
   requestAnimationFrame(animate);
   
-  sunLight.position.y = Math.sin(lightRad) * lightDistance;
-  sunLight.position.z = Math.cos(lightRad) * lightDistance;
+  sunLight.position.x = -Math.cos(lightRad) * (sunDistance / 5)
+  sunLight.position.y = Math.sin(lightRad) * sunDistance;
+  sunLight.position.z = Math.cos(lightRad) * sunDistance;
   lightRad += lightRadStep;
 
   controls.update(); // Noodzakelijk als enableDamping = true
   renderer.render(scene, camera);
 }
 
-animate();
+
+function createLights(box) {
+  // 6. Belichting toevoegen (Essentieel voor GLTF / MeshStandardMaterial)
+  // Omgevingslicht voor algemene helderheid
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+  scene.add(ambientLight);
+  
+  // Hemellicht voor zachte schaduwen/nuance
+  /*const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2.0);
+  hemiLight.position.set(0, 60, 0);
+  scene.add(hemiLight);*/
+  
+  // Richtingslicht voor diepte en highlights
+  
+  const dirLightRedBack = new THREE.DirectionalLight(directionalLightColor, 1.5);
+  dirLightRedBack.position.set(0, 0, box.min.z);
+  scene.add(dirLightRedBack);
+  
+  const dirLightRedFront = new THREE.DirectionalLight(directionalLightColor, 1.5);
+  dirLightRedFront.position.set(0, 0, box.max.z);
+  scene.add(dirLightRedFront);
+  
+  const sunLight = new THREE.DirectionalLight(0xffd0d0, sunStrength);
+  sunLight.position.set(sunDistance / 5, sunDistance, sunDistance);
+  scene.add(sunLight);
+
+  return sunLight;
+}

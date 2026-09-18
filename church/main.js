@@ -34,17 +34,13 @@ function renderScene(settings) {
     renderer.setSize(window.innerWidth, window.innerHeight);
   });
   
-  
-  // 5. Loader
-  
-  const sunLight = createSunlight();
-
   const loader = new GLTFLoader();
-  function loadModels() {
-    settings.models.forEach(modelInfo => loadModel(modelInfo));
-    createLights();
-    animate();
-  }
+  settings.models.forEach(modelInfo => loadModel(modelInfo));
+  createLights();
+  const sunLight = createSunlight();
+  var orbitStart = new Date().getTime();
+  var orbitEnd = null;
+  animate();
   
   function loadModel(modelInfo) {
     loader.load(
@@ -61,16 +57,16 @@ function renderScene(settings) {
         model.position.x += modelInfo.position.x;
         model.position.y += modelInfo.position.y;
         model.position.z += modelInfo.position.z;
-    
+        
         scene.add(model);
-        console.log('Model succesvol geladen!', model);
+       // console.log('Model succesvol geladen!', model);
         return;
       },
       (xhr) => {
         // Voortgang in console
         if (xhr.lengthComputable) {
           const percentComplete = (xhr.loaded / xhr.total) * 100;
-          console.log(`Laden: ${Math.round(percentComplete)}%`);
+          console.log(`Laden ${modelInfo.path}: ${Math.round(percentComplete)}%`);
         }
       },
       (error) => {
@@ -78,9 +74,7 @@ function renderScene(settings) {
       }
     );
   }
-  
-  loadModels();
-  
+
   function createSunlight() {
     var sunLight = new THREE.DirectionalLight(0xffd0d0, settings.sunStrength);
     sunLight.position.set(settings.sunDistance / 5, settings.sunDistance, settings.sunDistance);
@@ -113,7 +107,8 @@ function renderScene(settings) {
   
   // 8. Animatieloop
   var lightRad = 0;
-  var lightRadStep = Math.PI / (360 * settings.sunSpeed);
+  var lightRadStep = Math.PI / (720 * (settings.dayLengthInSeconds / 24));
+  
   
   function animate() {
     requestAnimationFrame(animate);
@@ -122,7 +117,11 @@ function renderScene(settings) {
     sunLight.position.y = Math.sin(lightRad) * settings.sunDistance;
     sunLight.position.z = Math.cos(lightRad) * settings.sunDistance;
     lightRad += lightRadStep;
-  
+    if (!orbitEnd && lightRad >= 2 * Math.PI) {
+      orbitEnd = new Date().getTime();
+      let orbitDuration = (orbitEnd - orbitStart) / 1000;
+      //console.log("Orbit s,e,d", orbitStart, orbitEnd, orbitDuration)
+    }
     controls.update(); // Noodzakelijk als enableDamping = true
     renderer.render(scene, camera);
   }
@@ -153,7 +152,7 @@ const sceneSettings = {
   shadowColor: 0xff80f0,
   sunStrength: 55,
   sunDistance: 50,
-  sunSpeed: 2
+  dayLengthInSeconds: 12
 }
 
 renderScene(sceneSettings);
